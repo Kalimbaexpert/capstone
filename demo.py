@@ -9,6 +9,54 @@ from modules.input_reader import VideoReader, ImageReader
 from modules.draw import Plotter3d, draw_poses
 from modules.parse_poses import parse_poses
 
+#Array to save joint coordinate and Array to send
+listed_array = []
+converted_array = []
+for t in range(17):
+    converted_array.extend([float(t),0,0])
+
+
+#TCP/IP Networking Setting IP Address, Port number
+import socket
+TCP_IP = '192.168.1.161'
+TCP_PORT = 5005
+
+def get_info(listed_array,num): # Function to read coordinate data of each joint from an array
+    x_data = listed_array[0][num][0]
+    y_data = listed_array[0][num][1]
+    z_data = listed_array[0][num][2]
+    return x_data,y_data,z_data
+
+# def print_info(arr,num): # Function to print coordinate data of each joint from an array
+#     point_x, point_y, point_z = get_info(arr,num)
+#     print("joint number : {}".format(num))
+#     print('x :',end='')
+#     print(point_x)
+#     print('y :',end='')
+#     print(point_y)
+#     print('z :',end='')
+#     print(point_z)
+
+def change_array(orig_num,changed_num): # function to adapt number between poses_3d and array for sending
+    if not listed_array[0][orig_num]:
+        listed_array[0][orig_num]=[0,0,0]
+
+    converted_array[3*changed_num+0] = listed_array[0][orig_num][0]
+    converted_array[3*changed_num+1] = listed_array[0][orig_num][1]
+    converted_array[3*changed_num+2] = listed_array[0][orig_num][2]
+
+def write_array(arr,arr_num,x,y,z): # function to assist for creating joint.
+    arr[3*arr_num+0] = x
+    arr[3*arr_num+1] = y
+    arr[3*arr_num+2] = z
+
+def create_joint(num1,num2,num3) : #num1, num2 : Input two point, num3 : Output middle points
+    XL,YL,ZL = get_info(listed_array,num1)
+    XR,YR,ZR = get_info(listed_array,num2)
+    XM = (XL+XR)/2
+    YM = (YL+YR)/2
+    ZM = (ZL+ZR)/2
+    write_array(converted_array,num3,XM,YM,ZM)
 
 def rotate_poses(poses_3d, R, t):
     R_inv = np.linalg.inv(R)
@@ -101,6 +149,7 @@ if __name__ == '__main__':
             fx = np.float32(0.8 * frame.shape[1])
         t0 = time.time()
         inference_result = net.infer(scaled_img)
+        # print(scaled_img.shape)  (256, 448, 3)
         print('Infer: {:1.3f}'.format(time.time()-t0))
         # print(type(inference_result))
         # for ar in inference_result:
@@ -117,19 +166,64 @@ if __name__ == '__main__':
             y = poses_3d_copy[:, 1::4]
             z = poses_3d_copy[:, 2::4]
             poses_3d[:, 0::4], poses_3d[:, 1::4], poses_3d[:, 2::4] = -z, x, -y
-
             poses_3d = poses_3d.reshape(poses_3d.shape[0], 19, -1)[:, :, 0:3]
+            # print("array : {}".format(poses_3d))
+            # print("x : {}".format(poses_3d[0,0,0]))
+            # print("y : {}".format(poses_3d[0,0,1]))
+            # print("z : {}".format(poses_3d[0,0,2]))
             edges = (Plotter3d.SKELETON_EDGES + 19 * np.arange(poses_3d.shape[0]).reshape((-1, 1, 1))).reshape((-1, 2))
+            
         plotter.plot(canvas_3d, poses_3d, edges)
         # continue
         cv2.imshow(canvas_3d_window_name, canvas_3d)
+        #change number of the pose_3d adapting for the array to send
+        listed_array = poses_3d.tolist()
+        print(listed_array)
+        print("len(listed_array) : {}".format(len(listed_array)))
+        if len(listed_array) >= 1 :
+            maxlength_person = [listed_array[0]]
+            for i in listed_array :
+                print("len(maxlength_person) : {}".format(maxlength_person))
+                print("len(i) : {}".format(i))
+                if len(i) > len(maxlength_person) :
+                    maxlength_person = [i]
+            listed_array = maxlength_person
+            change_array(2,0)
+            change_array(12,1)
+            change_array(13,2)
+            change_array(14,3)
+            change_array(6,4)
+            change_array(7,5)
+            change_array(8,6)
+            change_array(0,8)
+            change_array(1,9)
+            change_array(3,11)
+            change_array(4,12)
+            change_array(5,13)
+            change_array(9,14)
+            change_array(10,15)
+            change_array(11,16)
 
+            create_joint(0,2,7)
+            create_joint(15,16,10)
+            
+            #print(converted_array)
+        # print(len(converted_array[3]))
+        # print(len(converted_array[4]))
+        # print(len(converted_array[5]))
+        # s = socket.socket(socket.AF_INET, socket.SOCK_STREAM) # TCP/IP 초기세팅
+        # s.connect((TCP_IP, TCP_PORT))
+        # send_array = " ".join(str(x) for x in converted_array)
+        # s.sendall(bytes(str(send_array),encoding = 'utf-8'))
+        # s.close()
+        # print('Success Sending')
         draw_poses(frame, poses_2d)
         current_time = (cv2.getTickCount() - current_time) / cv2.getTickFrequency()
         if mean_time == 0:
             mean_time = current_time
         else:
             mean_time = mean_time * 0.95 + current_time * 0.05
+        print('FPS: {}'.format(int(1 / mean_time * 10) / 10))
         cv2.putText(frame, 'FPS: {}'.format(int(1 / mean_time * 10) / 10),
                     (40, 80), cv2.FONT_HERSHEY_COMPLEX, 1, (0, 0, 255))
         cv2.putText(frame, 'Time: {:1.3f}'.format(current_time),
@@ -156,3 +250,4 @@ if __name__ == '__main__':
                 break
             else:
                 delay = 1
+

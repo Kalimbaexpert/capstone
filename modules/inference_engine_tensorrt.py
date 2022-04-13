@@ -17,7 +17,6 @@ class InferenceEngineTensorRT:
         # runtime = trt.Runtime(TRT_LOGGER)
         with open(trt_model_path, 'rb') as f, trt.Runtime(TRT_LOGGER) as runtime:
             self.engine = runtime.deserialize_cuda_engine(f.read())
-
         self.img_mean = img_mean
         self.img_scale = img_scale
         # self.inputs, self.outputs, self.bindings, self.stream = self._allocate_buffers(self.engine)

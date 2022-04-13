@@ -1,0 +1,13 @@
+ ears S,Q
+ eyes R,P
+ nose B
+ neck A
+ shoulders J, D
+ elbows K, E
+ wrists L, F
+ hips M,G
+ knees N,H
+ ankles O, I
+
+
+ 
