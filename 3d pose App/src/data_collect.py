@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 Created on Tue Feb 20 11:47:50 2018
+
 @author: KEEL
 """
 import argparse
@@ -12,13 +13,22 @@ import common
 import numpy as np
 from estimator import TfPoseEstimator
 from networks import get_graph_path, model_wh
-
+import pandas as pd
 from  lifting.prob_model  import  Prob3dPose
 
-import socket
 import time
-# TCP_IP = '192.168.1.212'
-# TCP_PORT = 5005
+
+
+def make_dataframe(piped_data,dataframe):
+    datas = pd.DataFrame([piped_data])
+    DATA_Frame = pd.concat([dataframe,datas],axis=0,ignore_index=True)
+    return DATA_Frame
+
+
+
+
+col = np.arange(0,51,1)
+data_frame_set = pd.DataFrame(columns=col)
 
 
 
@@ -40,12 +50,11 @@ def Estimate_3Ddata(image,e,scales):
     # t = time.time()
     humans = e.inference(image, scales=scales)
     #elapsed = time.time() - t
+    print(humans)
     image = TfPoseEstimator.draw_humans(image, humans)
     #logger.info('inference image:%.4f seconds.' % (elapsed))
     logger.info('3d lifting initialization.')
-
     poseLifting = Prob3dPose('lifting/models/prob_model_params.mat')
-
     standard_w = 320
     standard_h = 240
 
@@ -69,48 +78,58 @@ def Estimate_3Ddata(image,e,scales):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='tf-pose-estimation run')
-    # parser.add_argument('--movie', type=str, default='../cai.mp4')
-    parser.add_argument('--movie', type=int, default='0')
+    # parser.add_argument('--video', type=str, default='../cai.mp4')
+    parser.add_argument('--video', type=int, default='0')
     parser.add_argument('--dataname',type=str,default='')
     parser.add_argument('--datas', type=str, default='data/')
     args = parser.parse_args()
-    movie = cv2.VideoCapture(args.movie)
+    video = cv2.VideoCapture(args.video)
 
     #w, h = model_wh('432x368')
     e = TfPoseEstimator(get_graph_path('mobilenet_thin'), target_size=(656,368))
     ast_l = ast.literal_eval('[None]')
-    frame_count = int(movie.get(7))
+    # frame_count = int(video.get(7))
     
-    for i in range(frame_count):
-        # s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        # s.connect((TCP_IP, TCP_PORT))
+    # for i in range(frame_count):
+    frame_count = 0
+    while(video.isOpened()):
+
         
         array = []
-        _, frame = movie.read()
+        _, frame = video.read()
+
         data, image = Estimate_3Ddata(frame,e,ast_l)
-        
 
         x = data[0][0]
         y = data[0][1]
         z = data[0][2]
-        
-        print(len(x))
 
-        for j in range(17): 
-            array.extend([x[j], y[j], z[j]])
-        array = " ".join(str(x) for x in array)
+
+        data_x = np.array(x)
+        data_y = np.array(y)
+        data_z = np.array(z)
+
+        detected_data = np.concatenate((data_x,data_y,data_z),axis=0)
+        print('shape : ', detected_data.shape)
+
+
+        data_frame_set = make_dataframe(detected_data,data_frame_set)
+        print(len(data_frame_set))
+        if len(data_frame_set) == 500:
+            data_frame_set.to_csv('Down_data4.csv')
+            break
+
+
 
         image = cv2.resize(image, (656,368))
         cv2.imshow('tf-pose-estimation result', image)
         if cv2.waitKey(1) == 27:
             break
 
-        # s.sendall(bytes(array,encoding = 'utf-8'))
-        
-        # s.close()
-        
+    
         #cv2.imwrite("data/%s.png"%i, frame)
         #fw = open('data/3d_data' + str(i)+'.txt','w')
         #fw.write(str(data))
         #fw.close()
     cv2.destroyAllWindows()
+    

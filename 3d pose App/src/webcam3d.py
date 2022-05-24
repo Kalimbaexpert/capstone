@@ -70,7 +70,8 @@ def Estimate_3Ddata(image,e,scales):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='tf-pose-estimation run')
-    parser.add_argument('--movie', type=str, default='../cai.mp4')
+    # parser.add_argument('--movie', type=str, default='../cai.mp4')
+    parser.add_argument('--movie', type=int, default=0)
     parser.add_argument('--dataname',type=str,default='')
     args = parser.parse_args()
     movie = cv2.VideoCapture(args.movie)

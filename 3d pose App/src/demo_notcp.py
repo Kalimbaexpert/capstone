@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 Created on Tue Feb 20 11:47:50 2018
+
 @author: KEEL
 """
 import argparse
@@ -15,10 +16,8 @@ from networks import get_graph_path, model_wh
 
 from  lifting.prob_model  import  Prob3dPose
 
-import socket
 import time
-# TCP_IP = '192.168.1.212'
-# TCP_PORT = 5005
+
 
 
 
@@ -40,12 +39,11 @@ def Estimate_3Ddata(image,e,scales):
     # t = time.time()
     humans = e.inference(image, scales=scales)
     #elapsed = time.time() - t
+    print(humans)
     image = TfPoseEstimator.draw_humans(image, humans)
     #logger.info('inference image:%.4f seconds.' % (elapsed))
     logger.info('3d lifting initialization.')
-
     poseLifting = Prob3dPose('lifting/models/prob_model_params.mat')
-
     standard_w = 320
     standard_h = 240
 
@@ -69,33 +67,35 @@ def Estimate_3Ddata(image,e,scales):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='tf-pose-estimation run')
-    # parser.add_argument('--movie', type=str, default='../cai.mp4')
-    parser.add_argument('--movie', type=int, default='0')
+    # parser.add_argument('--video', type=str, default='../cai.mp4')
+    parser.add_argument('--video', type=int, default='0')
     parser.add_argument('--dataname',type=str,default='')
     parser.add_argument('--datas', type=str, default='data/')
     args = parser.parse_args()
-    movie = cv2.VideoCapture(args.movie)
+    video = cv2.VideoCapture(args.video)
 
     #w, h = model_wh('432x368')
     e = TfPoseEstimator(get_graph_path('mobilenet_thin'), target_size=(656,368))
     ast_l = ast.literal_eval('[None]')
-    frame_count = int(movie.get(7))
+    # frame_count = int(video.get(7))
     
-    for i in range(frame_count):
-        # s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        # s.connect((TCP_IP, TCP_PORT))
+    # for i in range(frame_count):
+    frame_count = 0
+    while(video.isOpened()):
+
         
         array = []
-        _, frame = movie.read()
+        _, frame = video.read()
+
         data, image = Estimate_3Ddata(frame,e,ast_l)
-        
 
         x = data[0][0]
         y = data[0][1]
         z = data[0][2]
         
-        print(len(x))
 
+        
+        
         for j in range(17): 
             array.extend([x[j], y[j], z[j]])
         array = " ".join(str(x) for x in array)
@@ -105,12 +105,10 @@ if __name__ == '__main__':
         if cv2.waitKey(1) == 27:
             break
 
-        # s.sendall(bytes(array,encoding = 'utf-8'))
-        
-        # s.close()
-        
+    
         #cv2.imwrite("data/%s.png"%i, frame)
         #fw = open('data/3d_data' + str(i)+'.txt','w')
         #fw.write(str(data))
         #fw.close()
     cv2.destroyAllWindows()
+    file.close()
