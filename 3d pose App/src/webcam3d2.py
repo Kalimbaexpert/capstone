@@ -1,9 +1,4 @@
 # -*- coding: utf-8 -*-
-"""
-Created on Tue Feb 20 11:47:50 2018
-
-@author: KEEL
-"""
 import argparse
 import cv2
 import logging
@@ -18,10 +13,16 @@ from  lifting.prob_model  import  Prob3dPose
 
 import socket
 import time
-TCP_IP = '192.168.1.212'
+TCP_IP = '172.17.67.95'
 TCP_PORT = 5005
 
-
+#for count
+import joblib
+rf_model = joblib.load('./pkl/RF.pkl')
+post_rf = 'UP'
+rf_counting_time=0
+rf_count = 0
+##########################################
 
 logger = logging.getLogger('TfPoseEstimator')
 logger.setLevel(logging.DEBUG)
@@ -31,15 +32,11 @@ formatter = logging.Formatter('[%(asctime)s] [%(name)s] [%(levelname)s] %(messag
 ch.setFormatter(formatter)
 logger.addHandler(ch)
 
-
-
-out_dir  =  './movie/data_Doit/'
-
-def Estimate_3Ddata(image,e,scales):
+def Estimate_3Ddata(image,engine,scales):
     # t0 = time.time()
     # # estimate human poses from a single image !
     # t = time.time()
-    humans = e.inference(image, scales=scales)
+    humans = engine.inference(image, scales=scales)
     #elapsed = time.time() - t
     image = TfPoseEstimator.draw_humans(image, humans)
     #logger.info('inference image:%.4f seconds.' % (elapsed))
@@ -70,43 +67,65 @@ def Estimate_3Ddata(image,e,scales):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='tf-pose-estimation run')
-    parser.add_argument('--movie', type=str, default='../cai.mp4')
+    parser.add_argument('--camera', type=int, default=0)
+    parser.add_argument('--resize', type=str, default='0x0',
+                        help='if provided, resize images before they are processed. default=0x0, Recommends : 432x368 or 656x368 or 1312x736 ')
     parser.add_argument('--dataname',type=str,default='')
     parser.add_argument('--datas', type=str, default='data/')
     args = parser.parse_args()
-    movie = cv2.VideoCapture(args.movie)
+    cam = cv2.VideoCapture(args.camera)
 
-    #w, h = model_wh('432x368')
-    e = TfPoseEstimator(get_graph_path('mobilenet_thin'), target_size=(656,368))
+    w, h = model_wh('432x368')
+    engine = TfPoseEstimator(get_graph_path('mobilenet_thin'), target_size=(656,368))
     ast_l = ast.literal_eval('[None]')
-    frame_count = int(movie.get(7))
     
-    for i in range(frame_count):
+    while True:
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         s.connect((TCP_IP, TCP_PORT))
         
         array = []
-        _, frame = movie.read()
-        data, image = Estimate_3Ddata(frame,e,ast_l)
-        
-
+        _, frame = cam.read()
+        try:
+            data, image = Estimate_3Ddata(frame,engine,ast_l)
+        except Exception as e:
+            print(e)
+            pass
         x = data[0][0]
         y = data[0][1]
-        z = data[0][2]
+        z = data[0][2]+900
+
+        data_x = np.array(x)
+        data_y = np.array(y)
+        data_z = np.array(z)
+
+        detected_data = np.concatenate((data_x,data_y,data_z),axis=0)
         
+        rfpred = rf_model.predict(detected_data.reshape(1,-1))
+
+        if (rf_counting_time >=3) and (rfpred == 'UP'):
+            rf_count +=1       
+        
+        if (rfpred=='Down'):
+            rf_counting_time += 1
+        else: rf_counting_time = 0
+        
+
         for j in range(17): 
             array.extend([x[j], y[j], z[j]])
+        
+        array.append(rf_count)
         array = " ".join(str(x) for x in array)
-
-        image = cv2.resize(image, (656,368))
-        cv2.imshow('tf-pose-estimation result', image)
-        if cv2.waitKey(1) == 27:
-            break
-
         s.sendall(bytes(array,encoding = 'utf-8'))
         
         s.close()
-        
+        print("array")
+        print(array)
+        image = cv2.resize(image, (656,368))
+        cv2.imshow('tf-pose-estimation result', image)  
+        if cv2.waitKey(1) == 27:
+            break
+
+    
         #cv2.imwrite("data/%s.png"%i, frame)
         #fw = open('data/3d_data' + str(i)+'.txt','w')
         #fw.write(str(data))
