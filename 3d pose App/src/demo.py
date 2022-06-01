@@ -18,7 +18,7 @@ from  lifting.prob_model  import  Prob3dPose
 
 import socket
 import time
-TCP_IP = '192.168.1.161'
+TCP_IP = '192.168.143.156'
 TCP_PORT = 5005
 
 
@@ -35,11 +35,11 @@ logger.addHandler(ch)
 
 out_dir  =  './movie/data_Doit/'
 
-def Estimate_3Ddata(image,e,scales):
+def Estimate_3Ddata(image,engine,scales):
     # t0 = time.time()
     # # estimate human poses from a single image !
     # t = time.time()
-    humans = e.inference(image, scales=scales)
+    humans = engine.inference(image, scales=scales)
     #elapsed = time.time() - t
     print(humans)
     image = TfPoseEstimator.draw_humans(image, humans)
@@ -77,7 +77,7 @@ if __name__ == '__main__':
     video = cv2.VideoCapture(args.video)
 
     #w, h = model_wh('432x368')
-    e = TfPoseEstimator(get_graph_path('mobilenet_thin'), target_size=(656,368))
+    engine = TfPoseEstimator(get_graph_path('mobilenet_thin'), target_size=(656,368))
     ast_l = ast.literal_eval('[None]')
     # frame_count = int(video.get(7))
     
@@ -89,12 +89,15 @@ if __name__ == '__main__':
         
         array = []
         _, frame = video.read()
-
-        data, image = Estimate_3Ddata(frame,e,ast_l)
+        try:
+            data, image = Estimate_3Ddata(frame,engine,ast_l)
+        except Exception as e:
+            print(e)
+            pass
 
         x = data[0][0]
         y = data[0][1]
-        z = data[0][2]
+        z = data[0][2] + 900
         
         for j in range(17): 
             array.extend([x[j], y[j], z[j]])
@@ -103,7 +106,7 @@ if __name__ == '__main__':
         image = cv2.resize(image, (656,368))
         cv2.imshow('tf-pose-estimation result', image)
         if cv2.waitKey(1) == 27:
-            break
+            break   
 
         s.sendall(bytes(array,encoding = 'utf-8'))
         
@@ -114,4 +117,4 @@ if __name__ == '__main__':
         #fw.write(str(data))
         #fw.close()
     cv2.destroyAllWindows()
-    file.close()
+    

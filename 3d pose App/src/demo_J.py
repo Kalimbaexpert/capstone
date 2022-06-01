@@ -8,13 +8,9 @@ import common
 import numpy as np
 from estimator import TfPoseEstimator
 from networks import get_graph_path, model_wh
-
 from  lifting.prob_model  import  Prob3dPose
-
-import socket
 import time
-TCP_IP = '192.168.1.161'
-TCP_PORT = 5005
+
 
 
 logger = logging.getLogger('TfPoseEstimator')
@@ -24,12 +20,13 @@ ch.setLevel(logging.DEBUG)
 formatter = logging.Formatter('[%(asctime)s] [%(name)s] [%(levelname)s] %(message)s')
 ch.setFormatter(formatter)
 logger.addHandler(ch)
+import csv
 
-def Estimate_3Ddata(image,e,scales):
+def Estimate_3Ddata(image,engine,scales):
     # t0 = time.time()
     # # estimate human poses from a single image !
     # t = time.time()
-    humans = e.inference(image, scales=scales)
+    humans = engine.inference(image, scales=scales)
     #elapsed = time.time() - t
     image = TfPoseEstimator.draw_humans(image, humans)
     #logger.info('inference image:%.4f seconds.' % (elapsed))
@@ -69,16 +66,17 @@ if __name__ == '__main__':
     cam = cv2.VideoCapture(args.camera)
 
     w, h = model_wh('432x368')
-    e = TfPoseEstimator(get_graph_path('mobilenet_thin'), target_size=(656,368))
+    engine = TfPoseEstimator(get_graph_path('mobilenet_thin'), target_size=(656,368))
     ast_l = ast.literal_eval('[None]')
     
-    while True:
-        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        s.connect((TCP_IP, TCP_PORT))
-        
+    while True:        
         array = []
         _, frame = cam.read()
-        data, image = Estimate_3Ddata(frame,e,ast_l)
+        try:
+            data, image = Estimate_3Ddata(frame,engine,ast_l)
+        except Exception as e:
+            print(e)
+            pass
         
         x = data[0][0]
         y = data[0][1]
@@ -88,17 +86,26 @@ if __name__ == '__main__':
             array.extend([x[j], y[j], z[j]])
         array = " ".join(str(x) for x in array)
         print(array)
+        f = open("POSEDATA.csv", "w",encoding="UTF-8")
+        data_w = csv.writer(f)
+        data_w.writerow([array])
+
         image = cv2.resize(image, (656,368))
         cv2.imshow('tf-pose-estimation result', image)
         if cv2.waitKey(1) == 27:
             break
+        # try:
+        #     s.sendall(bytes(array,encoding = 'utf-8'))
+            
+        #     s.close()
+        # except Exception as e:
+        #     print(e)
+        #     pass
 
-        s.sendall(bytes(array,encoding = 'utf-8'))
-        
-        s.close()
         
         #cv2.imwrite("data/%s.png"%i, frame)
         #fw = open('data/3d_data' + str(i)+'.txt','w')
         #fw.write(str(data))
         #fw.close()
+        f.close()
     cv2.destroyAllWindows()
